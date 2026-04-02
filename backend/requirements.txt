@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+sqlalchemy
+pymysql
+alembic
+pydantic
+pydantic-settings
+azure-ai-documentintelligence
+azure-storage-blob
+google-generativeai
+httpx
+python-dotenv
+email-validator
+openpyxl

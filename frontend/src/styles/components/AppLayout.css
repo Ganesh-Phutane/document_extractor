@@ -1,0 +1,18 @@
+/* src/styles/components/AppLayout.css */
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-dark);
+}
+
+.main-content {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  max-width: 100%;
+  margin: 0;
+  height: 100vh; /* Changed from min-height: 100vh */
+  min-width: 0;
+  overflow: hidden; /* Prevent outer scroll */
+  transition: all 0.3s ease;
+}
