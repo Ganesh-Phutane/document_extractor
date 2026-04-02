@@ -25,4 +25,4 @@ python scripts/seed_templates.py
 # Using uvicorn directly for development/small production
 # For high traffic, consider gunicorn with workers
 echo "Starting FastAPI server..."
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+exec uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
