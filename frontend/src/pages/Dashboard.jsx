@@ -71,7 +71,7 @@ const Dashboard = () => {
         <div className="stat-card glass">
           <div className="stat-icon"><FileText size={24} /></div>
           <div className="stat-info">
-            <span className="stat-value">{documents.length}</span>
+            <span className="stat-value">{Array.isArray(documents) ? documents.length : 0}</span>
             <span className="stat-label">Total Documents</span>
           </div>
         </div>
@@ -79,7 +79,7 @@ const Dashboard = () => {
           <div className="stat-icon success"><TrendingUp size={24} /></div>
           <div className="stat-info">
             <span className="stat-value">
-              {documents.length > 0 
+              {Array.isArray(documents) && documents.length > 0 
                 ? Math.round((documents.filter(d => d.status === 'verified' || d.status === 'di_processed').length / documents.length) * 100) 
                 : 0}%
             </span>
@@ -89,7 +89,11 @@ const Dashboard = () => {
         <div className="stat-card glass">
           <div className="stat-icon warning"><Settings size={24} /></div>
           <div className="stat-info">
-            <span className="stat-value">{documents.filter(d => d.status === 'manual_review').length}</span>
+            <span className="stat-value">
+              {Array.isArray(documents) 
+                ? documents.filter(d => d.status === 'manual_review').length 
+                : 0}
+            </span>
             <span className="stat-label">Pending Review</span>
           </div>
         </div>
@@ -104,7 +108,7 @@ const Dashboard = () => {
           
           {loading ? (
             <div className="loading-state">Loading documents...</div>
-          ) : documents.length === 0 ? (
+          ) : (!Array.isArray(documents) || documents.length === 0) ? (
             <div className="empty-state">
               <FileText size={48} color="var(--text-muted)" />
               <p>No documents found.</p>

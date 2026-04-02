@@ -29,10 +29,11 @@ const MasterDocumentListPage = () => {
     (async () => {
       try {
         const data = await listDocuments();
-        setDocuments(data);
+        const safeData = Array.isArray(data) ? data : [];
+        setDocuments(safeData);
 
         // Check which docs already have master data (parallel, non-blocking)
-        const processable = data.filter(d => PROCESSABLE.has(d.status));
+        const processable = safeData.filter(d => PROCESSABLE.has(d.status));
         const checks = await Promise.allSettled(
           processable.map(d => getMasterData(d.id).then(() => [d.id, "exists"]))
         );

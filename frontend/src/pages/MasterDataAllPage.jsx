@@ -9,7 +9,8 @@ import {
   MousePointerClick,
   ChevronLeft,
   ChevronRight,
-  X
+  X,
+  Settings
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getMasterDataOnly } from "../api/masterData";
@@ -22,6 +23,23 @@ const MasterDataAllPage = () => {
   const [dataRecords, setDataRecords] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [searchTerm, setSearchTerm]   = useState("");
+  
+  // Column Visibility Drawer
+  const [showColumnDrawer, setShowColumnDrawer] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState({});
+  const [extraColumnsDetected, setExtraColumnsDetected] = useState([]);
+
+  // Standard Columns Definition
+  const STANDARD_COLUMNS = [
+    { id: "company_name", label: "Company", isStandard: true },
+    { id: "period", label: "Period", isStandard: true },
+    { id: "frequency", label: "Frequency", isStandard: true },
+    { id: "gross_sales", label: "Gross Sales", isStandard: true, isNumber: true },
+    { id: "ebita", label: "EBITDA", isStandard: true, isNumber: true },
+    { id: "net_revenue", label: "Net Revenue", isStandard: true, isNumber: true },
+    { id: "gross_profit", label: "Gross Profit", isStandard: true, isNumber: true },
+    { id: "total_debt", label: "Total Debt", isStandard: true, isNumber: true },
+  ];
   
   // Selected Record for Viewer
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -45,6 +63,37 @@ const MasterDataAllPage = () => {
     try {
       const data = await getMasterDataOnly();
       setDataRecords(data);
+      
+      // Auto-detect extra columns from the data
+      if (data && data.length > 0) {
+        const standardIds = STANDARD_COLUMNS.map(c => c.id);
+        const allKeys = new Set();
+        data.forEach(rec => {
+          Object.keys(rec).forEach(key => {
+            if (!standardIds.includes(key) && 
+                !["document_id", "filename", "extraction_id"].includes(key)) {
+              allKeys.add(key);
+            }
+          });
+        });
+        
+        const extras = Array.from(allKeys).sort();
+        setExtraColumnsDetected(extras);
+        
+        // Initialize visibility state if not already set
+        setVisibleColumns(prev => {
+          const newState = { ...prev };
+          // Standard columns true by default
+          STANDARD_COLUMNS.forEach(col => {
+            if (newState[col.id] === undefined) newState[col.id] = true;
+          });
+          // Extra columns false by default if newly detected
+          extras.forEach(colId => {
+            if (newState[colId] === undefined) newState[colId] = false;
+          });
+          return newState;
+        });
+      }
     } catch (err) {
       console.error("Failed to fetch master database:", err);
     } finally {
@@ -63,6 +112,21 @@ const MasterDataAllPage = () => {
   const totalPages = Math.ceil(filteredRecords.length / rowsPerPage);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  const renderCellValue = (val) => {
+    if (val === null || val === undefined || val === "") return "—";
+    
+    // Handle object structure {value, source_ref} from Gemini
+    if (typeof val === 'object' && val !== null) {
+      const displayVal = val.value !== undefined ? val.value : val;
+      if (displayVal === null || displayVal === undefined || displayVal === "") return "—";
+      return typeof displayVal === 'number' 
+        ? displayVal.toLocaleString("en-IN") 
+        : String(displayVal);
+    }
+    
+    return typeof val === 'number' ? val.toLocaleString("en-IN") : String(val);
+  };
 
   const handleRowClick = (record) => {
     if (selectedRecord && selectedRecord.document_id === record.document_id) {
@@ -92,7 +156,10 @@ const MasterDataAllPage = () => {
       if (trace && trace.trace_found !== false) {
         setActiveHighlight(trace);
       } else {
-        setActiveHighlight({ trace_found: false, matched_text: String(record[fieldId] ?? "") });
+        // Handle object values for cell display during trace
+        const rawVal = record[fieldId];
+        const displayVal = (typeof rawVal === 'object' && rawVal !== null) ? rawVal.value : rawVal;
+        setActiveHighlight({ trace_found: false, matched_text: String(displayVal ?? "") });
       }
     } catch (err) {
       console.error("Trace failed", err);
@@ -134,6 +201,10 @@ const MasterDataAllPage = () => {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
+            <button className="mda-btn-columns" onClick={() => setShowColumnDrawer(true)}>
+              <Settings size={16} />
+              <span>Columns</span>
+            </button>
             <button className="mda-btn-export" onClick={() => alert("Export coming soon!")}>
               <Download size={16} />
               <span>Export CSV</span>
@@ -165,14 +236,16 @@ const MasterDataAllPage = () => {
               <table className="mda-kpi-table mda-pivot-table">
                 <thead>
                   <tr>
-                    <th>Company</th>
-                    <th>Period</th>
-                    <th>Frequency</th>
-                    <th className="text-right">Gross Sales</th>
-                    <th className="text-right">EBITDA</th>
-                    <th className="text-right">Net Revenue</th>
-                    <th className="text-right">Gross Profit</th>
-                    <th className="text-right">Total Debt</th>
+                    {STANDARD_COLUMNS.map(col => visibleColumns[col.id] && (
+                      <th key={col.id} className={col.isNumber ? "text-right" : ""}>
+                        {col.label}
+                      </th>
+                    ))}
+                    {extraColumnsDetected.map(colId => visibleColumns[colId] && (
+                      <th key={colId} className="text-right" style={{ textTransform: 'capitalize' }}>
+                        {colId.replace(/_/g, ' ')}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -184,28 +257,55 @@ const MasterDataAllPage = () => {
                         className={`mda-kpi-row standout-row ${isActive ? 'active-row' : ''}`}
                         onClick={() => handleRowClick(r)}
                       >
-                        <td className="mda-cell-company">{r.company_name}</td>
-                        <td className="mda-cell-period">{r.period}</td>
-                        <td>
-                          <span className={`mda-badge ${(r.frequency || "").toLowerCase()}`}>
-                            {r.frequency}
-                          </span>
-                        </td>
-                        <td className="text-right mda-value-cell clickable" onClick={(e) => handleCellClick(e, r, "gross_sales")}>
-                          <span className="mda-val-number">{r.gross_sales?.toLocaleString("en-IN") || "—"}</span>
-                        </td>
-                        <td className="text-right mda-value-cell clickable" onClick={(e) => handleCellClick(e, r, "ebita")}>
-                          <span className="mda-val-number">{r.ebita?.toLocaleString("en-IN") || "—"}</span>
-                        </td>
-                        <td className="text-right mda-value-cell clickable" onClick={(e) => handleCellClick(e, r, "net_revenue")}>
-                          <span className="mda-val-number">{r.net_revenue?.toLocaleString("en-IN") || "—"}</span>
-                        </td>
-                        <td className="text-right mda-value-cell clickable" onClick={(e) => handleCellClick(e, r, "gross_profit")}>
-                          <span className="mda-val-number">{r.gross_profit?.toLocaleString("en-IN") || "—"}</span>
-                        </td>
-                        <td className="text-right mda-value-cell clickable" onClick={(e) => handleCellClick(e, r, "total_debt")}>
-                          <span className="mda-val-number">{r.total_debt?.toLocaleString("en-IN") || "—"}</span>
-                        </td>
+                        {/* Render Standard Columns */}
+                        {STANDARD_COLUMNS.map(col => {
+                          if (!visibleColumns[col.id]) return null;
+
+                          if (col.id === "company_name") {
+                            return <td key={col.id} className="mda-cell-company">{r.company_name}</td>;
+                          }
+                          if (col.id === "period") {
+                            return <td key={col.id} className="mda-cell-period">{r.period}</td>;
+                          }
+                          if (col.id === "frequency") {
+                            return (
+                              <td key={col.id}>
+                                <span className={`mda-badge ${(r.frequency || "").toLowerCase()}`}>
+                                  {r.frequency}
+                                </span>
+                              </td>
+                            );
+                          }
+                          
+                          // Numeric Standard KPIs
+                          return (
+                            <td 
+                              key={col.id} 
+                              className="text-right mda-value-cell clickable" 
+                              onClick={(e) => handleCellClick(e, r, col.id)}
+                            >
+                              <span className="mda-val-number">
+                                {renderCellValue(r[col.id])}
+                              </span>
+                            </td>
+                          );
+                        })}
+
+                        {/* Render Extra Columns */}
+                        {extraColumnsDetected.map(colId => {
+                          if (!visibleColumns[colId]) return null;
+                          return (
+                            <td 
+                              key={colId} 
+                              className="text-right mda-value-cell clickable"
+                              onClick={(e) => handleCellClick(e, r, colId)}
+                            >
+                              <span className="mda-val-number">
+                                {renderCellValue(r[colId])}
+                              </span>
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
@@ -271,6 +371,66 @@ const MasterDataAllPage = () => {
             />
           </div>
         </div>
+      )}
+
+      {/* Column Visibility Drawer */}
+      {showColumnDrawer && (
+        <>
+          <div className="mda-drawer-overlay" onClick={() => setShowColumnDrawer(false)} />
+          <div className="mda-column-drawer fade-in-right">
+            <header className="mda-drawer-header">
+              <div className="mda-dh-left">
+                <Settings size={18} />
+                <h3>Column Settings</h3>
+              </div>
+              <button className="mda-btn-close-drawer" onClick={() => setShowColumnDrawer(false)}>
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="mda-drawer-body">
+              <div className="mda-section-label">Main Columns</div>
+              <div className="mda-checkbox-group">
+                {STANDARD_COLUMNS.map(col => (
+                  <label key={col.id} className="mda-checkbox-item">
+                    <input 
+                      type="checkbox" 
+                      checked={!!visibleColumns[col.id]} 
+                      onChange={() => setVisibleColumns(prev => ({ ...prev, [col.id]: !prev[col.id] }))}
+                    />
+                    <span className="mda-checkbox-label">{col.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {extraColumnsDetected.length > 0 && (
+                <>
+                  <div className="mda-section-label" style={{ marginTop: '1.5rem' }}>Extra Columns</div>
+                  <div className="mda-checkbox-group">
+                    {extraColumnsDetected.map(colId => (
+                      <label key={colId} className="mda-checkbox-item">
+                        <input 
+                          type="checkbox" 
+                          checked={!!visibleColumns[colId]} 
+                          onChange={() => setVisibleColumns(prev => ({ ...prev, [colId]: !prev[colId] }))}
+                        />
+                        <span className="mda-checkbox-label" style={{ textTransform: 'capitalize' }}>
+                          {colId.replace(/_/g, ' ')}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <footer className="mda-drawer-footer">
+              <button className="mda-btn-apply" onClick={() => setShowColumnDrawer(false)}>
+                Done
+              </button>
+            </footer>
+          </div>
+        </>
       )}
     </div>
   );
