@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { FileText, Image as ImageIcon, ExternalLink, AlertCircle, Loader, FileCode, FileSpreadsheet, Code } from 'lucide-react';
 import axios from "axios";
+import apiClient from "../api/client";
 import * as XLSX from 'xlsx';
 import "../styles/components/DocumentViewer.css";
 
@@ -64,36 +65,35 @@ const DocumentViewer = ({
       setError(null);
 
       try {
-        const downloadUrl = `http://localhost:8000/documents/${documentId}/download/original`;
-        const token = localStorage.getItem("token");
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const downloadUrl = `/documents/${documentId}/download/original`;
         
         if (isCSV || isXML) {
           // Try to fetch text content. Start with backend proxy to avoid CORS issues with SAS
           try {
-            const res = await axios.get(downloadUrl, { headers });
+            const res = await apiClient.get(downloadUrl);
             setCsvContent(typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2));
           } catch (e) {
             console.warn("Backend proxy failed, trying externalUrl...", e);
             const res = await axios.get(externalUrl);
             setCsvContent(typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2));
           }
-          setUrl(externalUrl || downloadUrl);
+          setUrl(externalUrl || `${apiClient.defaults.baseURL}${downloadUrl}`);
         } else if (isXLSX) {
           // Fetch as arraybuffer for SheetJS
-          const response = await axios.get(externalUrl || downloadUrl, { headers, responseType: 'arraybuffer' });
+          const response = await apiClient.get(externalUrl || downloadUrl, { responseType: 'arraybuffer' });
           const workbook = XLSX.read(new Uint8Array(response.data), { type: 'array' });
           const sheets = workbook.SheetNames.map(name => ({
             name,
             data: XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1 })
           }));
           setXlsxData(sheets);
-          setUrl(externalUrl || downloadUrl);
+          setUrl(externalUrl || `${apiClient.defaults.baseURL}${downloadUrl}`);
         } else {
           // Fetch as blob (for PDF/Image)
-          const response = await axios.get(
+          // Note: If using externalUrl (direct SAS), apiClient might still try prepending baseURL if it's not absolute
+          const response = await apiClient.get(
             externalUrl || downloadUrl,
-            { headers, responseType: "blob" }
+            { responseType: "blob" }
           );
           objectUrl = URL.createObjectURL(response.data);
           setUrl(objectUrl);
@@ -191,7 +191,7 @@ const DocumentViewer = ({
             <span>Source Viewer</span>
           </div>
           <a
-            href={externalUrl || `http://localhost:8000/documents/${documentId}/download/original`}
+            href={externalUrl || `${apiClient.defaults.baseURL}/documents/${documentId}/download/original`}
             target="_blank"
             rel="noreferrer"
             className="btn-icon-text"
