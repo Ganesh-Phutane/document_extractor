@@ -30,7 +30,7 @@ def upgrade() -> None:
         sa.Column("blob_path",        sa.Text(),      nullable=False),
         sa.Column("company_name",     sa.String(255), nullable=True),
         sa.Column("confidence_score", sa.Float(),     nullable=True),
-        sa.Column("is_approved",      sa.Boolean(),   nullable=False, server_default=sa.text("0")),
+        sa.Column("is_approved",      sa.Boolean(),   nullable=False, server_default=sa.text("false")),
         sa.Column("version",          sa.String(20),  nullable=False, server_default="v3"),
         sa.Column("created_at",       sa.DateTime(timezone=True), nullable=True),
         sa.Column("updated_at",       sa.DateTime(timezone=True), nullable=True),

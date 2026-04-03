@@ -4,6 +4,7 @@ core/config.py
 Loads all environment variables using Pydantic Settings.
 All other modules import `settings` from here — never read os.environ directly.
 """
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +26,25 @@ class Settings(BaseSettings):
 
     # ── Database ─────────────────────────────────────────
     DATABASE_URL: str
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def ensure_db_driver(cls, v: str) -> str:
+        """Ensures the DATABASE_URL uses the correct SQLAlchemy driver."""
+        if not v:
+             return v
+             
+        # Normalize PostgreSQL schemes
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+psycopg2://", 1)
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+psycopg2://", 1)
+            
+        # Keep MySQL support (for flexibility)
+        if v.startswith("mysql://"):
+            return v.replace("mysql://", "mysql+pymysql://", 1)
+            
+        return v
 
     # ── Azure Blob Storage ──────────────────────────────
     AZURE_STORAGE_CONNECTION_STRING: str
