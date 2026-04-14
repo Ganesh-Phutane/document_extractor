@@ -44,6 +44,7 @@ from typing import Any, Optional, List, Dict
 from sqlalchemy.orm import Session
 from services.blob_service import BlobService
 from services import validation_service  # NEW
+from services.financial_utils import _normalise_number, _format_combined_value
 from models.master_data import MasterData, MasterDataRecord
 from models.extraction import ExtractedData
 from models.field_traceability import FieldTraceability
@@ -116,9 +117,16 @@ DEFAULT_MASTER_PROMPT_CONFIG = {
         ],
         "period": [
             "period", "quarter", "year", "fy", "financial year",
-            "reporting period", "as at", "for the period",
             "for the year", "for the quarter", "year ended",
             "period ended", "month ended", "as of"
+        ],
+        "currency": [
+            "currency", "denominated in", "values in", "currency used",
+            "reporting currency"
+        ],
+        "unit": [
+            "unit", "scale", "units", "in lakhs", "in millions", "in thousands",
+            "in crores", "amount in", "rounding"
         ]
     },
     "gemini_synthesis_prompt": (
@@ -132,8 +140,10 @@ DEFAULT_MASTER_PROMPT_CONFIG = {
         "{compact_content}\n\n"
         "FIELDS TO EXTRACT:\n"
         "1. company_name: The legal entity name (found in DOCUMENT CONTEXT headers/footers).\n"
-        "2. periods: A list of all unique financial periods (e.g. ['Q1 FY24', 'FY 2023']).\n"
-        "3. financials: A matrix of KPI values for EACH period found.\n\n"
+        "2. currency: The primary currency of the report (e.g., '$', 'INR', 'EUR'). DEFAULT to '$' if not found.\n"
+        "3. unit: The scale/unit used for numbers (e.g., 'Millions', 'Lakhs', 'Thousands').\n"
+        "4. periods: A list of all unique financial periods (e.g. ['Q1 FY24', 'FY 2023']).\n"
+        "5. financials: A matrix of KPI values for EACH period found. IMPORTANT: Return the FULL ABSOLUTE VALUE (e.g., if value is 10 and unit is Millions, return 10000000).\n\n"
         "KPIs TO TRACK:\n"
         "- gross_sales: Revenue, Turnover, Net Sales.\n"
         "- ebita: EBITDA, EBITA, Operating Profit.\n"
@@ -143,6 +153,8 @@ DEFAULT_MASTER_PROMPT_CONFIG = {
         "REQUIRED JSON STRUCTURE:\n"
         "{{\n"
         "  \"company_name\": \"string\",\n"
+        "  \"currency\": \"string\",\n"
+        "  \"unit\": \"string\",\n"
         "  \"periods\": [\"Period A\", \"Period B\"],\n"
         "  \"financials\": {{\n"
         "    \"gross_sales\": {{\n"
@@ -156,11 +168,12 @@ DEFAULT_MASTER_PROMPT_CONFIG = {
         "  }}\n"
         "}}\n\n"
         "STRICT RULES:\n"
+        "- Normalization: You MUST convert all numbers to their ABSOLUTE value using the detected unit. Do not return shortened numbers like '10.5' if the unit is Millions.\n"
+        "- Default Currency: If no currency symbol or name is found, use '$'.\n"
         "- Traceability: For EVERY field in 'financials', return an object: {{ \"value\": number, \"source_ref\": \"ref_N\" }}.\n"
-        "- Source Ref: Find the hidden tag (e.g. [[ref_1]]) closest to the data in the DOCUMENT CONTEXT.\n"
-        "- Numbers: Use plain floats in 'value'. No symbols. Use null if missing.\n"
-        "- Metadata: Prioritize the 'DOCUMENT CONTEXT' for the Company Name.\n"
-        "- Return ONLY the raw JSON object.\n"
+        "- Source Ref: Find the hidden tag (e.g. [[ref_1]]) closest to the data.\n"
+        "- Numbers: Use plain floats in 'value'. No symbols.\n"
+        "- Return ONLY raw JSON.\n"
     )
 }
 
@@ -171,66 +184,6 @@ DEFAULT_MASTER_PROMPT_CONFIG = {
 def _normalise_label(text: str) -> str:
     """Lowercase, remove extra spaces/punctuation for comparison."""
     return re.sub(r"[^a-z0-9\s]", "", str(text).lower()).strip()
-
-
-def _normalise_number(raw: Any) -> float | None:
-    """
-    Converts any financial value representation to a clean float.
-    Handles:
-      - Currency symbols (₹, $, €, £, ¥)
-      - Indian/international comma formats (1,00,000 → 100000)
-      - Text suffixes: "12.5 million" → 12500000, "4.2 crore" → 42000000
-      - Negative values in parentheses: (1234) → -1234
-      - Plain floats / ints
-    """
-    if raw is None:
-        return None
-    if isinstance(raw, (int, float)):
-        val_f = float(raw)
-        return round(val_f, 2) if math.isfinite(val_f) else None
-
-    s = str(raw).strip()
-    if not s or s.lower() in {"null", "none", "n/a", "-", ""}:
-        return None
-
-    is_negative = s.startswith("(") and s.endswith(")")
-    s = s.strip("()")
-
-    # Remove currency symbols and whitespace
-    s = re.sub(r"[₹$€£¥\s]", "", s)
-    # Remove commas (works for both 1,000 and 1,00,000)
-    s = re.sub(r",", "", s)
-
-    # Handle text multipliers
-    multipliers = {
-        "trillion": 1_000_000_000_000,
-        "billion":  1_000_000_000,
-        "crore":    10_000_000,
-        "million":  1_000_000,
-        "lakh":     100_000,
-        "lac":      100_000,
-        "thousand": 1_000,
-        "k":        1_000,
-        "m":        1_000_000,
-        "b":        1_000_000_000,
-        "cr":       10_000_000,
-    }
-    for word, factor in multipliers.items():
-        pattern = re.compile(rf"^([\d.]+)\s*{word}$", re.IGNORECASE)
-        m = pattern.match(s)
-        if m:
-            try:
-                val = float(m.group(1)) * factor
-                return round(float(-val if is_negative else val), 2)
-            except ValueError:
-                return None
-
-    try:
-        val = float(s)
-        return round(float(-val if is_negative else val), 2)
-    except ValueError:
-        return None
-
 
 def _standardise_period(raw: str | None) -> str | None:
     """
@@ -423,7 +376,7 @@ async def _gemini_synthesis(
                 raw_val = node.get("value") if isinstance(node, dict) else node
                 raw_ref = node.get("source_ref") if isinstance(node, dict) else None
                 
-                val = _normalise_number(raw_val)
+                val = _normalise_number(raw_val, default_unit=parsed.get("unit"))
                 if val is not None:
                     clean_map[p] = {"value": val, "source_ref": raw_ref}
 
@@ -441,7 +394,7 @@ async def _gemini_synthesis(
                     node = period_map.get(p)
                     raw_val = node.get("value") if isinstance(node, dict) else node
                     raw_ref = node.get("source_ref") if isinstance(node, dict) else None
-                    val = _normalise_number(raw_val)
+                    val = _normalise_number(raw_val, default_unit=parsed.get("unit"))
                     if val is not None:
                         clean_map[p] = {"value": val, "source_ref": raw_ref}
                 if clean_map:
@@ -449,13 +402,22 @@ async def _gemini_synthesis(
 
         return {
             "company_name": str(parsed.get("company_name") or "").strip() or None,
+            "currency":     str(parsed.get("currency") or "$").strip(),
+            "unit":         str(parsed.get("unit") or "").strip() or None,
             "periods":      periods,
             "financials":   clean_financials,
             "extra_fields": clean_extra,
         }
     except Exception as e:
         logger.warning(f"[MasterData] Gemini synthesis failed: {e}")
-        return {"company_name": None, "periods": [], "financials": {}, "extra_fields": {}}
+        return {
+            "company_name": None,
+            "currency": "$",
+            "unit": None,
+            "periods": [],
+            "financials": {},
+            "extra_fields": {}
+        }
 
 
 
@@ -682,6 +644,10 @@ async def process(
     company_name = synthesis.get("company_name")
     if company_name:
         company_name = str(company_name)[:255] # Safety truncation for DB
+    
+    currency = synthesis.get("currency", "$")
+    unit = synthesis.get("unit")
+    
     raw_periods  = synthesis.get("periods", [])
     
     # Standardise periods
@@ -773,6 +739,8 @@ async def process(
 
             # v might be {"value": ..., "source_ref": ...}
             actual_val = v["value"] if isinstance(v, dict) and "value" in v else v
+            # We don't have the current doc's unit here, but records usually contain it.
+            # For verification, we stick to absolute comparison.
             norm = _normalise_number(actual_val)
             if norm is not None:
                 # Keep the trace info if present!
@@ -786,6 +754,8 @@ async def process(
 
     output = {
         "company_name":    company_name,
+        "currency":        currency,
+        "unit":            unit,
         "periods":         std_periods_list,
         "frequency":       frequency,
         "financials":      final_financials,
@@ -808,14 +778,30 @@ async def process(
             periods=std_periods_list,
             financials=final_financials,
             extra_fields=clean_extra_fields,
-            db=db
+            db=db,
+            currency=currency,
+            unit=unit
         )
         output["validation_status"] = v_result.status
         output["validation_issues"] = v_result.issues
         
-        # If failure or conflict, we force requires_review
         if v_result.status != "validation_passed":
             output["requires_review"] = True
+
+    # ── 11. Format for UI Display (Combined Format) ──
+    # We do this AFTER validation so validation uses raw numbers
+    for fid, periods_map in output.get("financials", {}).items():
+        if fid in ["company_name", "period_row", "frequency"]: continue
+        for p, node in periods_map.items():
+            if isinstance(node, dict) and "value" in node:
+                node["value"] = _format_combined_value(node["value"], currency, unit)
+                
+    for fid, periods_map in output.get("extra_fields", {}).items():
+        for p, node in periods_map.items():
+            if isinstance(node, dict) and "value" in node:
+                node["value"] = _format_combined_value(node["value"], currency, unit)
+            elif not isinstance(node, dict):
+                periods_map[p] = _format_combined_value(node, currency, unit)
 
     # Save to blob
     result_path = BlobService.master_json_path(document_id)
@@ -939,6 +925,8 @@ def save_to_db(
             inf = _infer_frequency(p)
             if inf: inferred_freqs.add(inf)
         frequency = output.get("frequency") or ("mixed" if len(inferred_freqs) > 1 else (list(inferred_freqs)[0] if inferred_freqs else None))
+        currency_val = output.get("currency", "$")
+        unit_val = output.get("unit")
 
         for std_p in std_periods_list:
             freq_val = final_financials.get("frequency", {}).get(std_p, {}).get("value") or frequency or None
@@ -949,12 +937,17 @@ def save_to_db(
                 company_name=company_name,
                 period=std_p,
                 frequency=freq_val,
+                currency=currency_val,
+                unit=unit_val,
             )
 
             for fid, col_name in FIXED_COLUMN_MAP.items():
                 node = final_financials.get(fid, {}).get(std_p, {})
                 val  = node.get("value") if isinstance(node, dict) else None
-                setattr(rec, col_name, _normalise_number(val))
+                # CRITICAL: Pass unit_val so manual edits of plain numbers are scaled
+                abs_val = _normalise_number(val, default_unit=unit_val)
+                formatted = _format_combined_value(abs_val, currency_val, unit_val)
+                setattr(rec, col_name, formatted)
 
             period_extra: dict = {}
             for ef_name, ef_period_map in clean_extra_fields.items():

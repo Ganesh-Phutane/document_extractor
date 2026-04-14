@@ -332,7 +332,7 @@ const MasterDataPage = () => {
                       if (periods.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={3 + kpis.length} className="md-val-null" style={{ textAlign: 'center', padding: '2rem' }}>
+                            <td colSpan={5 + kpis.length} className="md-val-null" style={{ textAlign: 'center', padding: '2rem' }}>
                               No data found.
                             </td>
                           </tr>
@@ -380,11 +380,9 @@ const MasterDataPage = () => {
                                 style={{ textAlign: 'right', opacity: 0.85 }}
                                 onClick={() => val != null && handleRowClick(`extra_fields.${ef}`, val, p)}
                               >
-                                {val != null ? (
-                                  <span className="md-val-number" style={{ color: '#94a3b8' }}>
-                                    {typeof val === 'number' ? val.toLocaleString("en-IN") : val}
-                                  </span>
-                                ) : <span className="md-val-null">—</span>}
+                                <span className={`md-cell-value ${val === null ? 'md-val-null' : ''}`}>
+                                  {val !== null ? val : "—"}
+                                </span>
                               </td>
                             );
                           })}

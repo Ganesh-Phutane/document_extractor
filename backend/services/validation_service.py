@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from models.master_data import MasterDataRecord
 from core.logger import get_logger
+from services.financial_utils import _normalise_number, _format_combined_value
 import re
 
 logger = get_logger(__name__)
@@ -22,7 +23,9 @@ def validate_master_data(
     periods: List[str],
     financials: Dict[str, Any],
     extra_fields: Dict[str, Any],
-    db: Session
+    db: Session,
+    currency: Optional[str] = "$",
+    unit: Optional[str] = None
 ) -> ValidationResult:
     """
     Orchestrates all validation checks.
@@ -30,11 +33,11 @@ def validate_master_data(
     all_issues = []
     
     # 1. Total Validation (Components vs Totals)
-    total_issues = _validate_totals(financials, periods)
+    total_issues = _validate_totals(financials, periods, currency, unit)
     all_issues.extend(total_issues)
     
     # 2. Existing Data Comparison (Conflicts)
-    conflict_issues = _check_conflicts(db, company_name, periods, financials, extra_fields)
+    conflict_issues = _check_conflicts(db, company_name, periods, financials, extra_fields, currency, unit)
     all_issues.extend(conflict_issues)
     
     # 3. JSON Field Validation
@@ -50,7 +53,12 @@ def validate_master_data(
         
     return ValidationResult(status, all_issues)
 
-def _validate_totals(financials: Dict[str, Any], periods: List[str]) -> List[Dict[str, Any]]:
+def _validate_totals(
+    financials: Dict[str, Any], 
+    periods: List[str],
+    currency: Optional[str] = "$",
+    unit: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """
     Checks if monthly/quarterly values sum up to the yearly total.
     Smarter logic: 
@@ -122,14 +130,17 @@ def _validate_totals(financials: Dict[str, Any], periods: List[str]) -> List[Dic
                 if found_count == expected:
                     diff = component_sum - total_val
                     if abs(diff) > 0.01:
+                        # Format for user display
+                        fmt_expected = _format_combined_value(total_val, currency, unit)
+                        fmt_actual   = _format_combined_value(component_sum, currency, unit)
                         issues.append({
                             "type": "total_mismatch",
                             "severity": "error",
                             "field": kpi_id,
                             "period": yearly,
-                            "expected": total_val,
-                            "actual": component_sum,
-                            "message": f"Total mismatch for {kpi_id}. Yearly total ({total_val}) does not match sum of {found_count} {v_set['type_name']} ({component_sum})."
+                            "expected": fmt_expected,
+                            "actual": fmt_actual,
+                            "message": f"Total mismatch for {kpi_id}. Yearly total ({fmt_expected}) does not match sum of {found_count} {v_set['type_name']} ({fmt_actual})."
                         })
                     # Once we find one complete valid set, we don't need to check others for this KPI
                     break
@@ -141,7 +152,9 @@ def _check_conflicts(
     company_name: Optional[str],
     periods: List[str],
     financials: Dict[str, Any],
-    extra_fields: Dict[str, Any]
+    extra_fields: Dict[str, Any],
+    currency: Optional[str] = "$",
+    unit: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Compares new data with existing records in MasterDataRecord.
@@ -169,16 +182,22 @@ def _check_conflicts(
             
             new_val_node = period_map.get(period)
             new_val = new_val_node.get("value") if new_val_node else None
-            old_val = getattr(existing, kpi_id, None)
+            # DB value is now a string like "$180000 cr", unformat it for comparison
+            db_val_str = getattr(existing, kpi_id, None)
+            old_val = _normalise_number(db_val_str)
             
             if new_val is not None and old_val is not None and abs(new_val - old_val) > 0.01:
+                # Format for user display (Conflict Screen)
+                fmt_new = _format_combined_value(new_val, currency, unit)
+                fmt_old = _format_combined_value(old_val, currency, unit) or db_val_str
+                
                 issues.append({
                     "type": "conflict",
                     "field": kpi_id,
                     "period": period,
-                    "old_value": old_val,
-                    "new_value": new_val,
-                    "message": f"Conflict detected for {kpi_id} in {period}. Existing: {old_val}, New: {new_val}"
+                    "old_value": fmt_old,
+                    "new_value": fmt_new,
+                    "message": f"Conflict detected for {kpi_id} in {period}. Existing: {fmt_old}, New: {fmt_new}"
                 })
         
         # Compare Extra Fields

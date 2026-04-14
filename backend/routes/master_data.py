@@ -206,6 +206,8 @@ async def get_master_data_only(
                 "company_name": rec.company_name,
                 "period": rec.period,
                 "frequency": rec.frequency,
+                "currency": rec.currency,
+                "unit": rec.unit,
                 "gross_sales": rec.gross_sales,
                 "ebita": rec.ebita,
                 "net_revenue": rec.net_revenue,

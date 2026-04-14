@@ -81,20 +81,20 @@ const ValidationReview = ({ masterData, documentId, onResolved, showToast }) => 
           <div className="md-issue-detail-inline">
             <div className="md-issue-val-box">
                 <span className="md-issue-label">Calculated Sum:</span> 
-                <span className="md-issue-val-old">{issue.actual.toLocaleString()}</span>
+                <span className="md-issue-val-old">{issue.actual}</span>
             </div>
             <ArrowRightLeft size={14} className="md-issue-icon" /> 
             <div className="md-issue-val-box">
                 <span className="md-issue-label">Reported Total:</span> 
                 {isEditing ? (
                     <input 
-                        type="number" 
+                        type="text" 
                         className="md-inline-input"
                         value={getVal(path) ?? ''} 
-                        onChange={(e) => handleEditValue(path, parseFloat(e.target.value))}
+                        onChange={(e) => handleEditValue(path, e.target.value)}
                     />
                 ) : (
-                    <span className="md-issue-val-new">{issue.expected.toLocaleString()}</span>
+                    <span className="md-issue-val-new">{issue.expected}</span>
                 )}
             </div>
           </div>
@@ -111,10 +111,10 @@ const ValidationReview = ({ masterData, documentId, onResolved, showToast }) => 
                 <span className="md-issue-label">New Extracted:</span> 
                 {isEditing ? (
                     <input 
-                        type="number" 
+                        type="text" 
                         className="md-inline-input"
                         value={getVal(path) ?? ''} 
-                        onChange={(e) => handleEditValue(path, parseFloat(e.target.value))}
+                        onChange={(e) => handleEditValue(path, e.target.value)}
                     />
                 ) : (
                     <span className="md-issue-val-new">{issue.new_value}</span>

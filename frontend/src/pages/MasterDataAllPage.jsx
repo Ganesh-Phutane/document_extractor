@@ -34,11 +34,11 @@ const MasterDataAllPage = () => {
     { id: "company_name", label: "Company", isStandard: true },
     { id: "period", label: "Period", isStandard: true },
     { id: "frequency", label: "Frequency", isStandard: true },
-    { id: "gross_sales", label: "Gross Sales", isStandard: true, isNumber: true },
-    { id: "ebita", label: "EBITDA", isStandard: true, isNumber: true },
-    { id: "net_revenue", label: "Net Revenue", isStandard: true, isNumber: true },
-    { id: "gross_profit", label: "Gross Profit", isStandard: true, isNumber: true },
-    { id: "total_debt", label: "Total Debt", isStandard: true, isNumber: true },
+    { id: "gross_sales", label: "Gross Sales", isStandard: true },
+    { id: "ebita", label: "EBITDA", isStandard: true },
+    { id: "net_revenue", label: "Net Revenue", isStandard: true },
+    { id: "gross_profit", label: "Gross Profit", isStandard: true },
+    { id: "total_debt", label: "Total Debt", isStandard: true },
   ];
   
   // Selected Record for Viewer

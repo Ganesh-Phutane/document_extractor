@@ -79,11 +79,13 @@ class MasterDataRecord(Base):
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     period: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     frequency: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    gross_sales: Mapped[float | None] = mapped_column(Float, nullable=True)
-    ebita: Mapped[float | None] = mapped_column(Float, nullable=True)
-    net_revenue: Mapped[float | None] = mapped_column(Float, nullable=True)
-    gross_profit: Mapped[float | None] = mapped_column(Float, nullable=True)
-    total_debt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    gross_sales: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ebita: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    net_revenue: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    gross_profit: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    total_debt: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # ── Dynamic columns (extra fields from Gemini when flag is on) ───
     _extra_fields_json: Mapped[str | None] = mapped_column(
@@ -124,6 +126,8 @@ class MasterDataRecord(Base):
             "company_name": self.company_name,
             "period": self.period,
             "frequency": self.frequency,
+            "currency": self.currency,
+            "unit": self.unit,
             "gross_sales": self.gross_sales,
             "ebita": self.ebita,
             "net_revenue": self.net_revenue,
