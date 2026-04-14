@@ -1,0 +1,30 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis
+.pytest_cache
+
+# Node.js
+node_modules
+npm-debug.log
+frontend/dist
+frontend/node_modules
+
+# Azure (Required by Dockerfile)
+# .env
+# azure-ca.pem

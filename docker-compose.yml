@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  app:
+    image: ganesh200111/document-extractor:latest
+    container_name: document-extractor-app
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    # Mount .env if you want to be able to change it without rebuilding
+    env_file:
+      - .env
+    # Optional: ensure logs are readable
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
