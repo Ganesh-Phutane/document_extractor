@@ -8,7 +8,7 @@ MasterDataRecord  — one structured row per (document_id, period),
 import json
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, Float, Boolean, Text, ForeignKey
+from sqlalchemy import String, DateTime, Float, Boolean, Text, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from core.database import Base
 
@@ -30,6 +30,11 @@ class MasterData(Base):
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    
+    # ── Validation ───────────────────────────────────────
+    # status: pending, validation_passed, validation_failed, conflict_detected, approved
+    validation_status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending", index=True)
+    validation_issues: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
 
     version: Mapped[str] = mapped_column(String(20), nullable=False, default="v3")
 

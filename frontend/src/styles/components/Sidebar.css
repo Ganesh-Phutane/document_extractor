@@ -39,8 +39,8 @@
 }
 
 .collapse-toggle {
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-light);
   color: var(--text-muted);
   width: 28px;
   height: 28px;
@@ -75,12 +75,12 @@
 }
 
 .nav-item:hover {
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--bg-hover);
   color: var(--text-main);
 }
 
 .nav-item.active {
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--primary-subtle);
   color: var(--primary);
 }
 
@@ -115,7 +115,7 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--primary), #818cf8);
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -145,6 +145,6 @@
 }
 
 .nav-item.logout:hover {
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--error-subtle);
   color: var(--error);
 }

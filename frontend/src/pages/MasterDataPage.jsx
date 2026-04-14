@@ -27,6 +27,7 @@ import { processMasterData, getMasterData, approveMasterData } from "../api/mast
 import { getExtractionResult } from "../api/extractions";
 import { getFieldTrace } from "../api/trace";
 import DocumentViewer from "../components/DocumentViewer";
+import ValidationReview from "../components/ValidationReview"; // NEW
 import "../styles/pages/MasterData.css";
 
 // ── KPI fields (dedicated table) ────────────────────────────
@@ -98,6 +99,15 @@ const MasterDataPage = () => {
     })();
     return () => { cancelled = true; };
   }, [documentId]);
+
+  const refreshData = async () => {
+    try {
+      const refresh = await getMasterData(documentId);
+      setMasterData(refresh);
+    } catch (err) {
+      console.error("Failed to refresh data", err);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -266,11 +276,19 @@ const MasterDataPage = () => {
 
         {hasData && (
           <>
-            {masterData.requires_review && (
+            {masterData.requires_review && !masterData.validation_status?.includes('failed') && !masterData.validation_status?.includes('conflict') && (
               <div className="md-review-banner">
                 <AlertTriangle size={15} /> <strong>Requires Review</strong> — incomplete data.
               </div>
             )}
+
+            {/* ── Validation Review Component (NEW) ── */}
+            <ValidationReview 
+              masterData={masterData}
+              documentId={documentId}
+              onResolved={refreshData}
+              showToast={showToast}
+            />
 
 
             {/* ── KPI TABLE (Pivot View) ── */}

@@ -36,3 +36,18 @@ export const approveMasterData = async (documentId) => {
   const response = await apiClient.patch(`/master/${documentId}/approve`);
   return response.data;
 };
+
+/** Fetches records that failed validation or have conflicts */
+export const getPendingReview = async () => {
+  const response = await apiClient.get('/master/pending-review');
+  return response.data;
+};
+
+/** Resolves a validation/conflict state */
+export const resolveMasterData = async (documentId, action, resolvedData = null) => {
+  const response = await apiClient.post(`/master/${documentId}/resolve`, {
+    action,
+    resolved_data: resolvedData
+  });
+  return response.data;
+};

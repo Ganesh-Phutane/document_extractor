@@ -47,15 +47,15 @@
 }
 
 .viz-confidence.high {
-  background: rgba(16, 185, 129, 0.08);
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: var(--success-subtle);
+  color: var(--emerald-600);
+  border: 1px solid var(--success-subtle);
 }
 
 .viz-confidence.low {
-  background: rgba(245, 158, 11, 0.08);
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: var(--warning-subtle);
+  color: var(--amber-600);
+  border: 1px solid var(--warning-subtle);
 }
 
 /* Section-based Layout */
@@ -89,7 +89,7 @@
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--primary-subtle);
   color: var(--primary);
 }
 
@@ -128,7 +128,7 @@
   width: 150px;
   font-weight: 700;
   color: var(--text-muted);
-  background: #f8fafc;
+  background: var(--bg-subtle);
   text-transform: uppercase;
   font-size: 0.65rem;
   letter-spacing: 0.03em;
@@ -154,13 +154,13 @@
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.82rem;
-  background: #fff;
+  background: var(--bg-surface);
 }
 
 .nested-table th {
   text-align: left;
   padding: 0.5rem 0.75rem;
-  background: #f1f5f9;
+  background: var(--bg-soft);
   color: var(--text-muted);
   font-weight: 700;
   font-size: 0.65rem;
@@ -178,7 +178,7 @@
 }
 
 .nested-table tr:hover td {
-  background: #f8fafc;
+  background: var(--bg-subtle);
 }
 
 .traceable-row {
@@ -186,7 +186,7 @@
 }
 
 .traceable-row:hover td {
-  background: rgba(99, 102, 241, 0.04) !important;
+  background: var(--primary-subtle) !important;
 }
 
 .traceable {
@@ -196,7 +196,7 @@
 
 .traceable:hover {
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.05);
+  background: var(--primary-subtle);
   border-bottom-style: solid;
 }
 
@@ -205,7 +205,7 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1rem;
-  background: #f8fafc;
+  background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: 12px;
 }
@@ -224,17 +224,17 @@
 }
 
 /* Values */
-.value-null { color: #94a3b8; font-style: italic; }
-.value-bool.true { color: #059669; font-weight: 700; }
-.value-bool.false { color: #dc2626; font-weight: 700; }
+.value-null { color: var(--slate-400); font-style: italic; }
+.value-bool.true { color: var(--emerald-600); font-weight: 700; }
+.value-bool.false { color: var(--danger); font-weight: 700; }
 
 .tag {
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--primary-subtle);
   color: var(--primary);
   padding: 0.2rem 0.6rem;
   border-radius: 6px;
   font-size: 0.75rem;
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  border: 1px solid var(--primary-subtle);
   font-weight: 600;
 }
 

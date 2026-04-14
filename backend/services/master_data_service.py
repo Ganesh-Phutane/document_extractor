@@ -39,10 +39,11 @@ from __future__ import annotations
 import re
 import math
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional, List, Dict
 
 from sqlalchemy.orm import Session
 from services.blob_service import BlobService
+from services import validation_service  # NEW
 from models.master_data import MasterData, MasterDataRecord
 from models.extraction import ExtractedData
 from models.field_traceability import FieldTraceability
@@ -783,7 +784,6 @@ async def process(
         if cleaned_periods:
             clean_extra_fields[ef_name] = cleaned_periods
 
-    # ── 9. Assemble output ──
     output = {
         "company_name":    company_name,
         "periods":         std_periods_list,
@@ -791,12 +791,31 @@ async def process(
         "financials":      final_financials,
         "extra_fields":    clean_extra_fields,   # {} when flag is off
         "confidence_score": confidence,
-        "requires_review":  found_points < total_data_points or not company_name,
+        "requires_review":  not company_name, # Only force review if critical metadata is missing
         "errors":           errors,
         "processed_at":     datetime.now(timezone.utc).isoformat(),
         "document_id":      document_id,
-        "version":          "v3"
+        "version":          "v3",
+        "validation_status": "pending", # Placeholder
+        "validation_issues": []
     }
+
+    # ── 10. Run Validation Layer (NEW) ──
+    if db:
+        v_result = validation_service.validate_master_data(
+            document_id=document_id,
+            company_name=company_name,
+            periods=std_periods_list,
+            financials=final_financials,
+            extra_fields=clean_extra_fields,
+            db=db
+        )
+        output["validation_status"] = v_result.status
+        output["validation_issues"] = v_result.issues
+        
+        # If failure or conflict, we force requires_review
+        if v_result.status != "validation_passed":
+            output["requires_review"] = True
 
     # Save to blob
     result_path = BlobService.master_json_path(document_id)
@@ -807,118 +826,147 @@ async def process(
     # DATABASE PERSISTENCE
     # ─────────────────────────────────────────────────────────────
     if db:
-        try:
-            # ── 1. Upsert the header row (master_data) ──
-            master_rec = db.query(MasterData).filter(MasterData.document_id == document_id).first()
-            if not master_rec:
-                # Initialize with required fields immediately to avoid IntegrityError on flush
-                master_rec = MasterData(
-                    document_id=document_id,
-                    blob_path=result_path,
-                    company_name=company_name,
-                    version="v3"
-                )
-                db.add(master_rec)
-
-            # Create shadow extraction for traceability
-            shadow_ext = ExtractedData(
-                document_id=document_id,
-                model_used="gemini-master-synthesis",
-                extraction_version=prompt_config.get("version", "v3"),
-                is_active_version=False # Don't interfere with main UI
-            )
-            db.add(shadow_ext)
-            db.flush()
-
-            master_rec.extraction_id    = shadow_ext.id
-            output["extraction_id"]     = shadow_ext.id # Add to output!
-            master_rec.blob_path        = result_path
-            master_rec.company_name     = company_name
-            master_rec.confidence_score = float(confidence)
-            master_rec.version          = "v3"
-            master_rec.updated_at       = datetime.now(timezone.utc)
-            db.flush()  # gives master_rec.id before we create children
-
-            # ── 2. Save Traceability Mappings ──
-            trace_records = []
-            # Trace fixed financials
-            for kid in kpi_ids:
-                for std_p, node in final_financials.get(kid, {}).items():
-                    if isinstance(node, dict) and node.get("source_ref"):
-                        trace_records.append(FieldTraceability(
-                            extraction_id=shadow_ext.id,
-                            field_path=f"financials.{kid}.{std_p}",
-                            ref_key=node["source_ref"]
-                        ))
-            # Trace extra fields
-            for ef_name, period_map in clean_extra_fields.items():
-                for std_p, val_node in period_map.items():
-                    # val_node is {"value": ..., "source_ref": ...}
-                    if isinstance(val_node, dict) and val_node.get("source_ref"):
-                        trace_records.append(FieldTraceability(
-                            extraction_id=shadow_ext.id,
-                            field_path=f"extra_fields.{ef_name}.{std_p}",
-                            ref_key=val_node["source_ref"]
-                        ))
-            
-            if trace_records:
-                db.add_all(trace_records)
-
-            # ── 3. Upsert per-period structured rows (master_data_records) ──
-            # Delete stale rows for this document
-            db.query(MasterDataRecord).filter(
-                MasterDataRecord.document_id == document_id
-            ).delete(synchronize_session=False)
-
-            # Build a fixed-field lookup from the config so we never hardcode names
-            # config target_fields: [{ "id": "gross_sales", ... }, ...]
-            fixed_field_ids = {f["id"] for f in prompt_config.get("target_fields", [])}
-            # Map config field-id → DB column name (they match 1-to-1 in MasterDataRecord)
-            FIXED_COLUMN_MAP = {
-                fid: fid for fid in fixed_field_ids
-                if hasattr(MasterDataRecord, fid)
-            }
-
-            for std_p in std_periods_list:
-                freq_val = (
-                    final_financials.get("frequency", {}).get(std_p, {}).get("value")
-                    or frequency
-                    or None
-                )
-
-                rec = MasterDataRecord(
-                    master_data_id=master_rec.id,
-                    document_id=document_id,
-                    company_name=company_name,
-                    period=std_p,
-                    frequency=freq_val,
-                )
-
-                # Dynamically populate fixed numeric columns from the financials grid
-                for fid, col_name in FIXED_COLUMN_MAP.items():
-                    node = final_financials.get(fid, {}).get(std_p, {})
-                    val  = node.get("value") if isinstance(node, dict) else None
-                    setattr(rec, col_name, _normalise_number(val))
-
-                # Populate extra_fields for this period
-                # extra_fields shape: { field_name: { "Period A": val, ... } }
-                period_extra: dict = {}
-                for ef_name, ef_period_map in clean_extra_fields.items():
-                    if isinstance(ef_period_map, dict) and std_p in ef_period_map:
-                        period_extra[ef_name] = ef_period_map[std_p]
-                rec.extra_fields = period_extra  # uses the property setter → JSON
-
-                db.add(rec)
-
-            db.commit()
-            logger.info(
-                f"[MasterData DB] Persisted header + {len(std_periods_list)} period row(s) "
-                f"for doc: {document_id}"
-            )
-        except Exception as e:
-            db.rollback()
-            logger.error(f"[MasterData DB] Failed to persist records for {document_id}: {e}", exc_info=True)
-            # Re-raise so the route returns 500 instead of silent failure
-            raise e
+        save_to_db(
+            document_id=document_id,
+            company_name=company_name,
+            std_periods_list=std_periods_list,
+            final_financials=final_financials,
+            clean_extra_fields=clean_extra_fields,
+            confidence=confidence,
+            result_path=result_path,
+            db=db,
+            prompt_config=prompt_config,
+            output=output
+        )
 
     return output
+
+
+def save_to_db(
+    document_id: str,
+    company_name: Optional[str],
+    std_periods_list: List[str],
+    final_financials: Dict[str, Any],
+    clean_extra_fields: Dict[str, Any],
+    confidence: float,
+    result_path: str,
+    db: Session,
+    prompt_config: Dict[str, Any],
+    output: Dict[str, Any]
+) -> None:
+    """
+    Persists the extracted master data to the database.
+    Separated from 'process' to allow re-saving after manual review/edits.
+    """
+    try:
+        # ── 1. Upsert the header row (master_data) ──
+        master_rec = db.query(MasterData).filter(MasterData.document_id == document_id).first()
+        if not master_rec:
+            master_rec = MasterData(
+                document_id=document_id,
+                blob_path=result_path,
+                company_name=company_name,
+                version="v3"
+            )
+            db.add(master_rec)
+
+        # Create shadow extraction for traceability
+        shadow_ext = ExtractedData(
+            document_id=document_id,
+            model_used="gemini-master-synthesis",
+            extraction_version=prompt_config.get("version", "v3"),
+            is_active_version=False
+        )
+        db.add(shadow_ext)
+        db.flush()
+
+        master_rec.extraction_id    = shadow_ext.id
+        output["extraction_id"]     = shadow_ext.id
+        master_rec.blob_path        = result_path
+        master_rec.company_name     = company_name
+        master_rec.confidence_score = float(confidence)
+        master_rec.version          = "v3"
+        
+        master_rec.validation_status = output.get("validation_status", "validation_passed")
+        master_rec.validation_issues = output.get("validation_issues", [])
+
+        master_rec.updated_at       = datetime.now(timezone.utc)
+        db.flush()
+
+        # ── Guard: We now ALWAYS proceed to per-period records even if validation has issues ──
+        # This allows the user to see the data in the pivot table and perform manual edits.
+        if master_rec.validation_status != "validation_passed":
+            logger.info(f"[MasterData DB] Proceeding with persistence for {document_id} despite {master_rec.validation_status}")
+
+        # ── 2. Save Traceability Mappings ──
+        trace_records = []
+        kpi_ids = [f["id"] for f in prompt_config.get("target_fields", [])]
+        for kid in kpi_ids:
+            for std_p, node in final_financials.get(kid, {}).items():
+                if isinstance(node, dict) and node.get("source_ref"):
+                    trace_records.append(FieldTraceability(
+                        extraction_id=shadow_ext.id,
+                        field_path=f"financials.{kid}.{std_p}",
+                        ref_key=node["source_ref"]
+                    ))
+        for ef_name, period_map in clean_extra_fields.items():
+            for std_p, val_node in period_map.items():
+                if isinstance(val_node, dict) and val_node.get("source_ref"):
+                    trace_records.append(FieldTraceability(
+                        extraction_id=shadow_ext.id,
+                        field_path=f"extra_fields.{ef_name}.{std_p}",
+                        ref_key=val_node["source_ref"]
+                    ))
+        
+        if trace_records:
+            db.add_all(trace_records)
+
+        # ── 3. Upsert per-period structured rows (master_data_records) ──
+        # We delete by (company_name, period) to ensure only ONE consolidated row exists 
+        # in the 'All Master Data' database for any given fact, preventing duplicates.
+        for std_p in std_periods_list:
+            db.query(MasterDataRecord).filter(
+                MasterDataRecord.company_name == company_name,
+                MasterDataRecord.period == std_p
+            ).delete(synchronize_session=False)
+
+        fixed_field_ids = {f["id"] for f in prompt_config.get("target_fields", [])}
+        FIXED_COLUMN_MAP = {fid: fid for fid in fixed_field_ids if hasattr(MasterDataRecord, fid)}
+
+        # Infer frequency from periods if not explicitly provided
+        inferred_freqs = set()
+        for p in std_periods_list:
+            inf = _infer_frequency(p)
+            if inf: inferred_freqs.add(inf)
+        frequency = output.get("frequency") or ("mixed" if len(inferred_freqs) > 1 else (list(inferred_freqs)[0] if inferred_freqs else None))
+
+        for std_p in std_periods_list:
+            freq_val = final_financials.get("frequency", {}).get(std_p, {}).get("value") or frequency or None
+
+            rec = MasterDataRecord(
+                master_data_id=master_rec.id,
+                document_id=document_id,
+                company_name=company_name,
+                period=std_p,
+                frequency=freq_val,
+            )
+
+            for fid, col_name in FIXED_COLUMN_MAP.items():
+                node = final_financials.get(fid, {}).get(std_p, {})
+                val  = node.get("value") if isinstance(node, dict) else None
+                setattr(rec, col_name, _normalise_number(val))
+
+            period_extra: dict = {}
+            for ef_name, ef_period_map in clean_extra_fields.items():
+                if isinstance(ef_period_map, dict) and std_p in ef_period_map:
+                    period_extra[ef_name] = ef_period_map[std_p]
+            rec.extra_fields = period_extra
+
+            db.add(rec)
+
+        db.commit()
+        logger.info(f"[MasterData DB] Persisted header + {len(std_periods_list)} period row(s) for doc: {document_id}")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[MasterData DB] Failed to persist records for {document_id}: {e}", exc_info=True)
+        raise e

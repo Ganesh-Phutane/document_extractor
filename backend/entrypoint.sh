@@ -3,15 +3,9 @@
 # Exit immediately if a command fails
 set -e
 
-# Wait for MySQL to be ready if the DB host is provided and netcat is available
-if [ -n "$DATABASE_HOST" ]; then
-    echo "Waiting for MySQL at $DATABASE_HOST:3306..."
-    while ! nc -z $DATABASE_HOST 3306; do
-      echo "MySQL is unavailable - sleeping"
-      sleep 1
-    done
-    echo "MySQL is up - executing command"
-fi
+# 1. Wait for Database
+echo "Waiting for database to be ready..."
+python3 scripts/wait_for_db.py || { echo "Database wait failed"; exit 1; }
 
 # Run migrations
 echo "Running alembic migrations..."

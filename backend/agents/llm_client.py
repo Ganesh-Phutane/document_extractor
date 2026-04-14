@@ -19,6 +19,8 @@ class LLMClient:
         
         genai.configure(api_key=settings.GEMINI_API_KEY)
         self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        key_preview = f"{settings.GEMINI_API_KEY[:6]}...{settings.GEMINI_API_KEY[-4:]}" if settings.GEMINI_API_KEY else "MISSING"
+        logger.info(f"LLMClient initialized with model: {settings.GEMINI_MODEL} and API key: {key_preview}")
 
     async def get_completion(self, prompt: str, system_instruction: str = None, json_mode: bool = False) -> str:
         """

@@ -17,9 +17,9 @@ RUN npm run build
 FROM python:3.11-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV DEBIAN_FRONTEND noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies + Nginx + SSL Certs + PostgreSQL
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -30,8 +30,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Azure CA certificate
+# Copy Azure CA certificate and Consolidated .env
 COPY azure-ca.pem /app/azure-ca.pem
+COPY .env /app/.env
 
 # Set work directory
 WORKDIR /app

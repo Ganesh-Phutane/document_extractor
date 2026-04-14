@@ -13,7 +13,7 @@ export const uploadDocument = async (file) => {
 };
 
 export const listDocuments = async () => {
-  const response = await apiClient.get('/documents');
+  const response = await apiClient.get('/documents/');
   return response.data;
 };
 

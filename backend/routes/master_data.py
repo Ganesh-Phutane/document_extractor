@@ -11,19 +11,20 @@ Endpoints:
   GET   /master/{document_id}/latest   → retrieves saved result from blob
   PATCH /master/{document_id}/approve  → marks result as approved (sets flag in JSON)
 """
-from typing import Annotated, List
-
+from typing import Annotated, Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-
 from core.dependencies import get_db, get_current_user
 from core.logger import get_logger
 from models.user import User
 from models.document import Document
-from models.master_data import MasterDataRecord
 from services.blob_service import BlobService
 from services import md_converter, master_data_service
+from schemas.master_data import MasterDataResolveRequest
+from models.master_data import MasterData, MasterDataRecord
 from azure.core.exceptions import ResourceNotFoundError
+from datetime import datetime, timezone
+
 
 logger = get_logger(__name__)
 
@@ -156,7 +157,6 @@ def approve_master_data(
     except ResourceNotFoundError:
         raise HTTPException(status_code=404, detail="No master data result found.")
 
-    from datetime import datetime, timezone
     now_ts = datetime.now(timezone.utc)
     
     result["is_approved"] = True
@@ -225,3 +225,119 @@ async def get_master_data_only(
     except Exception as e:
         logger.error(f"[MasterData Route] Error fetching data-only records: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── GET /master/pending-review ───────────────────────────────
+@router.get("/pending-review", status_code=status.HTTP_200_OK)
+async def get_pending_review(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """
+    Fetches all master data records that failed validation or have conflicts.
+    """
+    records = db.query(MasterData).filter(
+        MasterData.validation_status.in_(["validation_failed", "conflict_detected"])
+    ).all()
+    
+    # We want to return the full payload for the UI to compare
+    results = []
+    bs = BlobService()
+    for rec in records:
+        try:
+            data = bs.download_json(rec.blob_path)
+            # Add some metadata for the UI
+            data["validation_status"] = rec.validation_status
+            data["validation_issues"] = rec.validation_issues
+            results.append(data)
+        except Exception:
+            continue
+    return results
+
+
+# ── POST /master/{document_id}/resolve ───────────────────────
+@router.post("/{document_id}/resolve", status_code=status.HTTP_200_OK)
+async def resolve_master_data(
+    document_id: str,
+    payload: MasterDataResolveRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """
+    Resolves a validation/conflict state by either accepting, rejecting, or providing edited data.
+    If 'accept' or 'edit', it proceeds to create MasterDataRecord entries.
+    """
+    master_rec = db.query(MasterData).filter(MasterData.document_id == document_id).first()
+    if not master_rec:
+        raise HTTPException(status_code=404, detail="Master data record not found.")
+
+    bs = BlobService()
+    
+    if payload.action == "reject":
+        now_ts = datetime.now(timezone.utc)
+        
+        # 1. Update Database Status
+        master_rec.validation_status = "validation_passed" 
+        master_rec.validation_issues = []
+        master_rec.is_approved = False 
+        master_rec.updated_at = now_ts
+        
+        # 2. Update Blob (JSON) Status so the UI hides the banner
+        try:
+            data = bs.download_json(master_rec.blob_path)
+            data["validation_status"] = "validation_passed"
+            data["validation_issues"] = []
+            bs.upload_json(data, master_rec.blob_path)
+        except Exception as e:
+            logger.error(f"[MasterData Route] Failed to sync rejection to blob: {e}")
+            # We still commit DB changes since the resolve succeeded
+            
+        db.commit()
+        logger.info(f"[MasterData Route] Record {document_id} rejected (manually marked resolved) by {current_user.email}")
+        return {"message": "Record rejected. Validation flags cleared in repository."}
+
+    # If 'accept' or 'edit', we need the final data to persist
+    final_data = None
+    if payload.action == "accept":
+        final_data = bs.download_json(master_rec.blob_path)
+    elif payload.action == "edit":
+        if not payload.resolved_data:
+            raise HTTPException(status_code=400, detail="Missing resolved_data for 'edit' action.")
+        final_data = payload.resolved_data
+    
+    if not final_data:
+         raise HTTPException(status_code=400, detail="Could not determine final data for resolution.")
+
+    # 1. Update status and clear issues in both DB and JSON
+    master_rec.validation_status = "validation_passed"
+    master_rec.validation_issues = []
+    master_rec.is_approved = True # Auto-approve upon resolution
+    
+    # CRITICAL: Update the JSON body so save_to_db doesn't see a conflict!
+    final_data["validation_status"] = "validation_passed"
+    final_data["validation_issues"] = []
+    
+    # 2. Sync to Blob (Always update blob to clear status flags for the UI)
+    bs.upload_json(final_data, master_rec.blob_path)
+
+    # 3. Trigger Persistence to Master Tables
+    try:
+        from services.master_data_service import save_to_db, _load_prompt_config
+        prompt_config = _load_prompt_config(bs)
+        
+        save_to_db(
+            document_id=document_id,
+            company_name=final_data.get("company_name"),
+            std_periods_list=final_data.get("periods", []),
+            final_financials=final_data.get("financials", {}),
+            clean_extra_fields=final_data.get("extra_fields", {}),
+            confidence=final_data.get("confidence_score", 0),
+            result_path=master_rec.blob_path,
+            db=db,
+            prompt_config=prompt_config,
+            output=final_data
+        )
+        return {"message": f"Record resolved and saved successfully via {payload.action}."}
+    except Exception as e:
+        logger.error(f"[MasterData Route] Resolution failed for {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Resolution failed: {str(e)}")

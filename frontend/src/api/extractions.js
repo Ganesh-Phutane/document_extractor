@@ -25,6 +25,6 @@ export const getExtractionResult = async (documentId) => {
 
 export const getTemplates = async () => {
   // Assuming a generic templates endpoint exists or matches the task
-  const response = await apiClient.get('/templates');
+  const response = await apiClient.get('/templates/');
   return response.data;
 };

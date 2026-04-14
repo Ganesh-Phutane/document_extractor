@@ -12,17 +12,17 @@ import {
 } from "lucide-react";
 import "../styles/components/Sidebar.css";
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const Sidebar = ({
-  activeView,
-  setActiveView,
   isCollapsed,
   setIsCollapsed,
   user,
   onLogout,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const menuItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, path: "/" },
     {
@@ -31,12 +31,6 @@ const Sidebar = ({
       icon: Sparkles,
       path: "/upload-extract",
     },
-    // {
-    //   id: "documents",
-    //   label: "All Documents",
-    //   icon: Files,
-    //   path: "/documents",
-    // },
     {
       id: "master_data",
       label: "Master Data",
@@ -51,9 +45,16 @@ const Sidebar = ({
     },
   ];
 
-  const handleNav = (id, path) => {
-    if (setActiveView) setActiveView(id);
+  const handleNav = (path) => {
     navigate(path);
+  };
+
+  const isActive = (item) => {
+    const currentPath = location.pathname;
+    if (item.id === 'overview') return currentPath === '/';
+    // Match exact or starts with but not /master/all for /master
+    if (item.id === 'master_data') return currentPath === '/master' || (currentPath.startsWith('/master/') && !currentPath.startsWith('/master/all'));
+    return currentPath.startsWith(item.path);
   };
 
   return (
@@ -74,18 +75,21 @@ const Sidebar = ({
       </div>
 
       <nav className="sidebar-nav">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            className={`nav-item ${activeView === item.id ? "active" : ""}`}
-            onClick={() => handleNav(item.id, item.path)}
-            title={item.label}
-          >
-            <item.icon size={20} />
-            {!isCollapsed && <span>{item.label}</span>}
-            {activeView === item.id && <div className="active-indicator" />}
-          </button>
-        ))}
+        {menuItems.map((item) => {
+          const active = isActive(item);
+          return (
+            <button
+              key={item.id}
+              className={`nav-item ${active ? "active" : ""}`}
+              onClick={() => handleNav(item.path)}
+              title={item.label}
+            >
+              <item.icon size={20} />
+              {!isCollapsed && <span>{item.label}</span>}
+              {active && <div className="active-indicator" />}
+            </button>
+          );
+        })}
       </nav>
 
       <div className="sidebar-footer">

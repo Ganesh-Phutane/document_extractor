@@ -20,8 +20,8 @@
 /* ── Viewer Pane ────────────────────────────────────── */
 .mda-viewer-pane {
   width: 45%;
-  border-left: 1px solid var(--border);
-  background: #fff;
+  border-left: 1px solid var(--border-main);
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   box-shadow: -4px 0 16px rgba(0,0,0,0.03);
@@ -34,7 +34,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f1f5f9;
+  background: var(--bg-soft);
 }
 
 .mda-viewer-header {
@@ -42,8 +42,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--border);
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--border-main);
 }
 
 .mda-vh-left {
@@ -56,8 +56,8 @@
 }
 
 .mda-btn-close-viewer {
-  background: #f1f5f9;
-  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  border: 1px solid var(--border-main);
   color: var(--text-muted);
   cursor: pointer;
   padding: 6px;
@@ -66,9 +66,9 @@
 }
 
 .mda-btn-close-viewer:hover {
-  background: #ffe4e6;
-  color: #e11d48;
-  border-color: #fda4af;
+  background: var(--error-subtle);
+  color: var(--danger);
+  border-color: var(--error-border);
 }
 
 /* ── Header ─────────────────────────────────────────── */
@@ -90,8 +90,8 @@
 }
 
 .mda-btn-back {
-  background: #fff;
-  border: 1px solid var(--border);
+  background: #f8fafc;
+  border: 1px solid var(--border-main);
   color: var(--text-main);
   border-radius: 10px;
   padding: 0.5rem;
@@ -113,8 +113,8 @@
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted);
-  background: #f1f5f9;
-  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  border: 1px solid var(--border-main);
   border-radius: 6px;
   padding: 2px 10px;
   display: inline-block;
@@ -133,6 +133,7 @@
   padding: 0.5rem 1rem;
   border-radius: 10px;
   background: #fff;
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   min-width: 300px;
   box-shadow: var(--shadow-sm);
@@ -153,7 +154,7 @@
   gap: 0.5rem;
   background: var(--primary);
   border: 1px solid var(--primary);
-  color: #fff;
+  color: var(--bg-surface);
   padding: 0.5rem 1rem;
   border-radius: 10px;
   font-size: 0.8125rem;
@@ -166,7 +167,7 @@
 .mda-table-section {
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--bg-surface);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   display: flex;
@@ -176,7 +177,7 @@
 .mda-table-header {
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  background: #f8fafc;
+  background: var(--bg-soft);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -199,16 +200,16 @@
   font-size: 0.65rem;
   color: var(--text-muted);
   font-weight: 600;
-  background: #fff;
+  background: var(--bg-surface);
   padding: 3px 8px;
   border-radius: 4px;
   border: 1px solid var(--border);
 }
 
 .mda-table-scroll {
-  overflow: auto;
-  min-height: 400px;
-  max-height: calc(100vh - 180px);
+  overflow-y: scroll !important;
+  max-height: 500px !important;
+  min-height: 300px;
   padding: 0;
   margin: 0;
   border-right: none;
@@ -221,17 +222,17 @@
 }
 
 .mda-table-scroll::-webkit-scrollbar-track {
-  background: #f8fafc;
+  background: var(--bg-soft);
 }
 
 .mda-table-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--border);
   border-radius: 5px;
-  border: 2px solid #f8fafc;
+  border: 2px solid var(--bg-soft);
 }
 
 .mda-table-scroll::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--text-muted);
 }
 
 .mda-kpi-table {
@@ -241,7 +242,10 @@
 }
 
 .mda-kpi-table thead th {
-  background: #f1f5f9;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-subtle);
   padding: 0.6rem 1rem;
   text-align: left;
   font-size: 0.68rem;
@@ -258,7 +262,7 @@
   position: sticky;
   left: 0;
   z-index: 25;
-  background: #fff;
+  background: var(--bg-surface);
   border-right: 1px solid var(--border);
   min-width: 140px;
 }
@@ -268,7 +272,7 @@
   position: sticky;
   left: 140px;
   z-index: 25;
-  background: #fff;
+  background: var(--bg-surface);
   border-right: 1px solid var(--border);
   min-width: 100px;
 }
@@ -276,11 +280,11 @@
 .mda-kpi-table thead th:nth-child(1),
 .mda-kpi-table thead th:nth-child(2) {
   z-index: 35;
-  background: #f1f5f9;
+  background: var(--bg-subtle);
 }
 
 .mda-kpi-row.active-row td {
-  background: rgba(99, 102, 241, 0.04) !important;
+  background: var(--primary-subtle) !important;
   color: var(--primary) !important;
 }
 
@@ -293,7 +297,7 @@
 }
 
 .mda-cell-company { 
-  color: #4338ca;
+  color: var(--indigo-700);
   font-weight: 500; 
   cursor: pointer;
 }
@@ -322,16 +326,16 @@
   text-transform: capitalize;
 }
 
-.mda-badge.yearly { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-.mda-badge.quarterly { background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; }
-.mda-badge.monthly { background: #fffbeb; color: #92400e; border: 1px solid #fef3c7; }
+.mda-badge.yearly { background: var(--success-subtle); color: var(--emerald-600); border: 1px solid var(--success-subtle); }
+.mda-badge.quarterly { background: var(--primary-subtle); color: var(--indigo-600); border: 1px solid var(--primary-subtle); }
+.mda-badge.monthly { background: var(--warning-subtle); color: var(--amber-600); border: 1px solid var(--warning-subtle); }
 
 /* ── Spinner for full-page loading ── */
 .mda-spinner-full {
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(99,102,241,0.18);
-  border-top-color: #6366f1;
+  border: 3px solid var(--primary-subtle);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: mda-spin 0.8s linear infinite;
 }
@@ -359,7 +363,7 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.3rem 0.6rem;
-  background: #fff;
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
@@ -378,7 +382,7 @@
 }
 
 .mda-pag-btn {
-  background: #f8fafc;
+  background: var(--bg-soft);
   border: 1px solid var(--border);
   color: var(--text-main);
   width: 28px;
@@ -392,7 +396,7 @@
 }
 
 .mda-pag-btn:hover:not(:disabled) {
-  background: #fff;
+  background: var(--bg-surface);
   border-color: var(--primary);
   color: var(--primary);
 }
@@ -402,8 +406,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: #fff;
-  border: 1px solid var(--border);
+   background: #f8fafc;
+  border: 1px solid var(--border-main);
   color: var(--text-main);
   padding: 0.5rem 1rem;
   border-radius: 10px;
@@ -415,7 +419,7 @@
 }
 
 .mda-btn-columns:hover {
-  background: #f8fafc;
+  /* background: var(--bg-soft); */
   border-color: var(--primary);
   color: var(--primary);
 }
@@ -435,7 +439,7 @@
   right: 0;
   bottom: 0;
   width: 320px;
-  background: #fff;
+  background: var(--bg-surface);
   z-index: 1001;
   box-shadow: -10px 0 30px rgba(0,0,0,0.1);
   display: flex;
@@ -448,7 +452,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #f8fafc;
+  background: var(--bg-soft);
 }
 
 .mda-dh-left {
@@ -465,7 +469,7 @@
 }
 
 .mda-btn-close-drawer {
-  background: #fff;
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--text-muted);
   cursor: pointer;
@@ -475,7 +479,7 @@
 }
 
 .mda-btn-close-drawer:hover {
-  background: #f1f5f9;
+  background: var(--bg-subtle);
   color: var(--text-main);
 }
 
@@ -512,8 +516,8 @@
 }
 
 .mda-checkbox-item:hover {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: var(--bg-soft);
+  border-color: var(--border);
 }
 
 .mda-checkbox-item input[type="checkbox"] {
@@ -540,7 +544,7 @@
   padding: 0.75rem;
   background: var(--primary);
   border: none;
-  color: #fff;
+  color: var(--bg-surface);
   border-radius: 10px;
   font-weight: 700;
   font-size: 0.875rem;
