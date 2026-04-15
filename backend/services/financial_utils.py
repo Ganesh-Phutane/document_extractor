@@ -11,26 +11,32 @@ def _normalise_number(raw: Any, default_unit: str | None = None) -> float | None
     if raw is None:
         return None
     
-    # If it's already a number, and we HAVE a default unit, we assume it's in that unit
-    # UNLESS it's already a massive absolute number?
-    # To keep it simple: if it's a raw int/float from the user (manual edit), we treat it as coefficient.
+    # Shared multipliers for consistency
+    multipliers = {
+        "trillion": 1_000_000_000_000, "t": 1_000_000_000_000,
+        "billion":  1_000_000_000,     "b": 1_000_000_000,
+        "crore":    10_000_000,        "cr": 10_000_000,
+        "million":  1_000_000,         "m": 1_000_000,
+        "lakh":     100_000,           "l": 100_000, "lac": 100_000,
+        "thousand": 1_000,             "th": 1_000,  "k": 1_000,
+    }
+
+    # 1. Handle numeric inputs (from Gemini or manual edit)
     if isinstance(raw, (int, float)):
         val_f = float(raw)
         if not math.isfinite(val_f): return None
         
         factor = 1.0
         if default_unit:
-            multipliers = {
-                "trillion": 1_000_000_000_000,
-                "billion":  1_000_000_000,
-                "crore":    10_000_000,
-                "million":  1_000_000,
-                "lakh":     100_000,
-                "thousand": 1_000,
-                "k":        1_000,
-                "cr":       10_000_000,
-            }
-            factor = multipliers.get(default_unit.lower().strip(), 1.0)
+            # Normalize to lowercase for safe lookup
+            unit_key = str(default_unit).lower().strip()
+            
+            # SAFEGUARD: If the number is already massive (e.g. > 1 million absolute),
+            # we assume it's already an absolute value (from Gemini) and skip scaling.
+            # Exception: if the unit is 'billion' or 'trillion', the coefficient could be > 1M,
+            # but usually manual edits are small coefficients like "10".
+            if abs(val_f) < 1_000_000:
+                factor = multipliers.get(unit_key, 1.0)
             
         return round(val_f * factor, 2)
 
@@ -41,35 +47,25 @@ def _normalise_number(raw: Any, default_unit: str | None = None) -> float | None
     is_negative = s.startswith("(") and s.endswith(")")
     s = s.strip("()")
 
+    # Remove alphabetical currency codes (INR, USD, etc.) up to 3 chars if at start
+    s = re.sub(r"^[a-z]{1,3}", "", s, flags=re.IGNORECASE)
     # Remove currency symbols and whitespace
     s = re.sub(r"[₹$€£¥\s]", "", s)
     # Remove commas
     s = re.sub(r",", "", s)
-
-    # Multipliers map
-    multipliers = {
-        "trillion": 1_000_000_000_000,
-        "billion":  1_000_000_000,
-        "crore":    10_000_000,
-        "million":  1_000_000,
-        "lakh":     100_000,
-        "lac":      100_000,
-        "thousand": 1_000,
-        "k":        1_000,
-        "m":        1_000_000,
-        "b":        1_000_000_000,
-        "cr":       10_000_000,
-    }
     
     # Check if string CONTAINs any of the unit words
     unit_detected = False
     for word in multipliers.keys():
-        if re.search(rf"\b{word}\b", s, re.IGNORECASE):
+        # Match word specifically at the end of the string or as a separate word
+        # We handle the case where whitespace was stripped (e.g. "10M")
+        if re.search(rf"{word}$", s, re.IGNORECASE):
             unit_detected = True
             break
             
-    # Try direct multipliers first
+    # Try direct multipliers next
     for word, factor in multipliers.items():
+        # Handle cases like "12.35M" or "12.35 M"
         pattern = re.compile(rf"^([\d.]+)\s*{word}$", re.IGNORECASE)
         m = pattern.match(s)
         if m:
@@ -103,20 +99,29 @@ def _format_combined_value(val: float | None, currency: str | None, unit: str | 
     
     # Priority ordered multipliers for auto-scaling
     # We use a list of tuples to maintain order from largest to smallest
+    # tipping_points = [
+    #     (1_000_000_000_000, "trillion"),
+    #     (1_000_000_000,     "billion"),
+    #     (10_000_000,        "crore"),
+    #     (1_000_000,         "million"),
+    #     (100_000,           "lakh"),
+    #     (1_000,             "k"),
+    # ]
+    
     tipping_points = [
-        (1_000_000_000_000, "trillion"),
-        (1_000_000_000,     "billion"),
-        (10_000_000,        "crore"),
-        (1_000_000,         "million"),
-        (100_000,           "lakh"),
+        (1_000_000_000_000, "T"),
+        (1_000_000_000,     "B"),
+        (10_000_000,        "Cr"),
+        (1_000_000,         "M"),
+        (100_000,           "L"),
         (1_000,             "k"),
     ]
-    
     best_factor = 1.0
     best_suffix = original_unit
     
     # If the user provided a unit, we use it as the starting point
-    multipliers_map = { t[1]: t[0] for t in tipping_points }
+    # Normalize keys for lookup
+    multipliers_map = { t[1].lower(): t[0] for t in tipping_points }
     if original_unit in multipliers_map:
         best_factor = multipliers_map[original_unit]
     
