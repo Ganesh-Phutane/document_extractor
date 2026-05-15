@@ -14,12 +14,7 @@ import "../styles/components/Sidebar.css";
 
 import { useNavigate, useLocation } from "react-router-dom";
 
-const Sidebar = ({
-  isCollapsed,
-  setIsCollapsed,
-  user,
-  onLogout,
-}) => {
+const Sidebar = ({ isCollapsed, setIsCollapsed, user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -37,12 +32,12 @@ const Sidebar = ({
       icon: Database,
       path: "/master",
     },
-    {
-      id: "all_master",
-      label: "All Master Data",
-      icon: LayoutGrid,
-      path: "/master/all",
-    },
+    // {
+    //   id: "all_master",
+    //   label: "All Master Data",
+    //   icon: LayoutGrid,
+    //   path: "/master/all",
+    // },
   ];
 
   const handleNav = (path) => {
@@ -51,9 +46,14 @@ const Sidebar = ({
 
   const isActive = (item) => {
     const currentPath = location.pathname;
-    if (item.id === 'overview') return currentPath === '/';
+    if (item.id === "overview") return currentPath === "/";
     // Match exact or starts with but not /master/all for /master
-    if (item.id === 'master_data') return currentPath === '/master' || (currentPath.startsWith('/master/') && !currentPath.startsWith('/master/all'));
+    if (item.id === "master_data")
+      return (
+        currentPath === "/master" ||
+        (currentPath.startsWith("/master/") &&
+          !currentPath.startsWith("/master/all"))
+      );
     return currentPath.startsWith(item.path);
   };
 
