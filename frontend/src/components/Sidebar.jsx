@@ -32,12 +32,12 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, user, onLogout }) => {
       icon: Database,
       path: "/master",
     },
-    // {
-    //   id: "all_master",
-    //   label: "All Master Data",
-    //   icon: LayoutGrid,
-    //   path: "/master/all",
-    // },
+    {
+      id: "all_master",
+      label: "All Master Data",
+      icon: LayoutGrid,
+      path: "/master/all",
+    },
   ];
 
   const handleNav = (path) => {
