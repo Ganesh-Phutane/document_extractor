@@ -30,9 +30,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Azure CA certificate and Consolidated .env
+# Copy Azure CA certificate and use .env.example as a template
 COPY azure-ca.pem /app/azure-ca.pem
-COPY .env /app/.env
+COPY .env.example /app/.env
+# COPY .env /app/.env
 
 # Set work directory
 WORKDIR /app
