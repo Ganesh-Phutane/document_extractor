@@ -2,6 +2,16 @@ import re
 import math
 from typing import Any
 
+# Shared multipliers for consistency across normalization and formatting
+multipliers = {
+    "trillion": 1_000_000_000_000, "t": 1_000_000_000_000,
+    "billion":  1_000_000_000,     "b": 1_000_000_000,
+    "crore":    10_000_000,        "cr": 10_000_000,
+    "million":  1_000_000,         "m": 1_000_000,
+    "lakh":     100_000,           "l": 100_000, "lac": 100_000,
+    "thousand": 1_000,             "th": 1_000,  "k": 1_000,
+}
+
 def _normalise_number(raw: Any, default_unit: str | None = None) -> float | None:
     """
     Converts any financial value representation to a clean float.
@@ -11,15 +21,6 @@ def _normalise_number(raw: Any, default_unit: str | None = None) -> float | None
     if raw is None:
         return None
     
-    # Shared multipliers for consistency
-    multipliers = {
-        "trillion": 1_000_000_000_000, "t": 1_000_000_000_000,
-        "billion":  1_000_000_000,     "b": 1_000_000_000,
-        "crore":    10_000_000,        "cr": 10_000_000,
-        "million":  1_000_000,         "m": 1_000_000,
-        "lakh":     100_000,           "l": 100_000, "lac": 100_000,
-        "thousand": 1_000,             "th": 1_000,  "k": 1_000,
-    }
 
     # 1. Handle numeric inputs (from Gemini or manual edit)
     if isinstance(raw, (int, float)):
@@ -89,7 +90,7 @@ def _normalise_number(raw: Any, default_unit: str | None = None) -> float | None
 def _format_combined_value(val: float | None, currency: str | None, unit: str | None) -> str | None:
     """
     Turns an absolute float back into a formatted string like '$180k' or '$10 million'.
-    Automatically scales up to larger units if the number is too big.
+    Automatically scales up to larger units within the same system (International or Indian).
     """
     if val is None:
         return None
@@ -98,16 +99,6 @@ def _format_combined_value(val: float | None, currency: str | None, unit: str | 
     original_unit = (unit or "").lower().strip()
     
     # Priority ordered multipliers for auto-scaling
-    # We use a list of tuples to maintain order from largest to smallest
-    # tipping_points = [
-    #     (1_000_000_000_000, "trillion"),
-    #     (1_000_000_000,     "billion"),
-    #     (10_000_000,        "crore"),
-    #     (1_000_000,         "million"),
-    #     (100_000,           "lakh"),
-    #     (1_000,             "k"),
-    # ]
-    
     tipping_points = [
         (1_000_000_000_000, "T"),
         (1_000_000_000,     "B"),
@@ -116,19 +107,36 @@ def _format_combined_value(val: float | None, currency: str | None, unit: str | 
         (100_000,           "L"),
         (1_000,             "k"),
     ]
-    best_factor = 1.0
-    best_suffix = original_unit
     
-    # If the user provided a unit, we use it as the starting point
-    # Normalize keys for lookup
-    multipliers_map = { t[1].lower(): t[0] for t in tipping_points }
-    if original_unit in multipliers_map:
-        best_factor = multipliers_map[original_unit]
+    # Define unit systems for consistency
+    international_units = {"t", "trillion", "b", "billion", "m", "million", "k", "thousand", "th"}
+    indian_units        = {"cr", "crore", "l", "lakh", "lac"}
     
+    # Use the more comprehensive multipliers dict for initial factor
+    # We use the top-level 'multipliers' variable defined earlier in the file
+    best_factor = multipliers.get(original_unit, 1.0)
+    best_suffix = unit if unit else "" # Keep original casing if possible
+    
+    # Detect the system of the original unit
+    system = "international"
+    if original_unit in indian_units:
+        system = "indian"
+    elif not original_unit:
+        # Default to international if no unit provided
+        system = "international"
+    
+    # Filter tipping points based on the detected system
+    # If the user provided an international unit, don't scale to Cr/L.
+    # If the user provided an Indian unit, stay within Cr/L.
+    if system == "international":
+        relevant_points = [(f, s) for f, s in tipping_points if s.lower() in international_units]
+    else:
+        relevant_points = [(f, s) for f, s in tipping_points if s.lower() in indian_units or s.lower() == "k"] # Allow 'k' as fallback for Indian too
+
     # SMART SCALING: If the number is too big (> 10,000) for the current unit, 
-    # find a better one.
+    # find a better one within the same system.
     if abs(val / best_factor) >= 10000:
-        for factor, suffix in tipping_points:
+        for factor, suffix in relevant_points:
             if abs(val) >= factor:
                 best_factor = factor
                 best_suffix = suffix
