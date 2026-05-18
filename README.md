@@ -96,22 +96,22 @@ project/
 
 ---
 
-## 🔑 6. Environment Variables
+## ⚙️ 6. Installation Guide
 
-Create a `.env` file in the root directory.
+### ⚙️ Prerequisites
 
-| Variable                          | Description                                                          |
-| :-------------------------------- | :------------------------------------------------------------------- |
-| `DATABASE_URL`                    | PostgreSQL connection string (`postgresql://user:pass@host:port/db`) |
-| `SECRET_KEY`                      | Long random string for JWT token security                            |
-| `AZURE_DI_KEY`                    | API Key for Azure Document Intelligence                              |
-| `AZURE_DI_ENDPOINT`               | Endpoint URL for Azure Document Intelligence                         |
-| `GEMINI_API_KEY`                  | API Key from Google AI Studio                                        |
-| `AZURE_STORAGE_CONNECTION_STRING` | Connection string for Azure Blob Storage                             |
+Before you clone and run the application, make sure you have the following prerequisites installed on your system:
+
+*   **Node.js (v20.x or higher)**: Required for running the React/Vite frontend.
+    *   📥 [Download Node.js](https://nodejs.org/en/download/) (LTS recommended)
+*   **Python (v3.11.x or higher)**: Required for the FastAPI backend.
+    *   📥 [Download Python](https://www.python.org/downloads/)
+*   **Git**: Required to clone the repository.
+    *   📥 [Download Git](https://git-scm.com/downloads)
+*   **Docker** *(Optional but recommended)*: Required if you want to deploy the application inside containers.
+    *   📥 [Download Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
 ---
-
-## ⚙️ 7. Installation Guide
 
 ### 1. Clone the Repository
 
@@ -148,6 +148,21 @@ python backend/scripts/seed_templates.py
 
 ---
 
+## 🔑 7. Environment Variables
+
+Create a `.env` file in the root directory.
+
+| Variable                          | Description                                                          |
+| :-------------------------------- | :------------------------------------------------------------------- |
+| `DATABASE_URL`                    | PostgreSQL connection string (`postgresql://user:pass@host:port/db`) |
+| `SECRET_KEY`                      | Long random string for JWT token security                            |
+| `AZURE_DI_KEY`                    | API Key for Azure Document Intelligence                              |
+| `AZURE_DI_ENDPOINT`               | Endpoint URL for Azure Document Intelligence                         |
+| `GEMINI_API_KEY`                  | API Key from Google AI Studio                                        |
+| `AZURE_STORAGE_CONNECTION_STRING` | Connection string for Azure Blob Storage                             |
+
+---
+
 ## 🏃 8. Running the Application
 
 ### Local Development
@@ -181,30 +196,36 @@ The project includes interactive API docs (Swagger):
 
 ---
 
-## 🚢 11. Deployment Guide (Cloud Setup)
+## 🚢 10. Deployment Guide (Cloud Setup)
 
 This project uses a modern **CI/CD pipeline** with Docker and Azure. Here is how the deployment works from start to finish:
 
 ### Step 1: Create a Docker Hub Repository
+
 1. Log in to [Docker Hub](https://hub.docker.com/).
 2. Create a new public repository (e.g., `your-username/document-extractor`).
 
 ### Step 2: Build and Push the Image
+
 You can push your latest code to the cloud in two ways:
 
 **Manual Way:**
 Run the provided script in your terminal:
+
 ```bash
 sh push_images.sh
 ```
-*This script builds the image and pushes it to your Docker Hub account.*
+
+_This script builds the image and pushes it to your Docker Hub account._
 
 **Automated Way (GitHub Actions):**
+
 1. Push your code to the `main` branch on GitHub.
 2. The robot in `.github/workflows/docker-push.yml` will automatically build and push the image for you.
 3. **Note**: Make sure to add your `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` to your GitHub Repository Secrets.
 
 ### Step 3: Setup Azure App Service
+
 1. Go to the [Azure Portal](https://portal.azure.com/).
 2. Create a **Web App for Containers**.
 3. In the **Deployment Center**:
@@ -218,7 +239,7 @@ sh push_images.sh
 
 ---
 
-## 🖼️ 12. Screenshots
+## 🖼️ 11. Screenshots
 
 #### Authentication (Login/Register)
 
